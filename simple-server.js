@@ -16,6 +16,7 @@ const PORT = 5000;
 // Middleware
 const corsOptions = {
   origin: [
+    "https://bak-client.vercel.app",
     "http://bak-camera.portfolo.am",
     "http://localhost:3000",
     "http://localhost:5173",
@@ -52,9 +53,10 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Ensure uploads directory exists
-const uploadsDir = process.env.NODE_ENV === "production" 
-  ? "/app/uploads" 
-  : path.join(__dirname, "uploads");
+const uploadsDir =
+  process.env.NODE_ENV === "production"
+    ? "/app/uploads"
+    : path.join(__dirname, "uploads");
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });

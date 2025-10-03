@@ -23,6 +23,7 @@ class BakCamerasServer {
     // CORS configuration
     const corsOptions = {
       origin: [
+        "https://bak-client.vercel.app",
         "http://bak-camera.portfolo.am",
         "http://localhost:3000",
         "http://localhost:5173",
@@ -174,23 +175,28 @@ class BakCamerasServer {
   private ensureDirectories(): void {
     try {
       // Determine uploads directory based on environment
-      const uploadsDir = process.env["NODE_ENV"] === "production" 
-        ? "/app/uploads" 
-        : path.join(__dirname, "../uploads");
-      
+      const uploadsDir =
+        process.env["NODE_ENV"] === "production"
+          ? "/app/uploads"
+          : path.join(__dirname, "../uploads");
+
       if (!fs.existsSync(uploadsDir)) {
         fs.mkdirSync(uploadsDir, { recursive: true });
         console.log(`✅ Created uploads directory: ${uploadsDir}`);
       } else {
         console.log(`📁 Uploads directory already exists: ${uploadsDir}`);
       }
-      
+
       // Verify the directory is writable
       fs.accessSync(uploadsDir, fs.constants.W_OK);
       console.log(`✅ Uploads directory is writable: ${uploadsDir}`);
     } catch (error) {
       console.error(`❌ Failed to create or access uploads directory:`, error);
-      throw new Error(`Cannot create uploads directory: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Cannot create uploads directory: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
