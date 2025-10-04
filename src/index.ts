@@ -88,7 +88,7 @@ class BakCamerasServer {
     this.app.get("/api/status", (_req: Request, res: Response) => {
       res.json({
         success: true,
-        message: "Bak Cameras API is running",
+        message: "Bak Cameras Black & White Processing API is running",
         version: "1.0.0",
         endpoints: {
           imageUpload: "POST /api/images",
@@ -107,7 +107,7 @@ class BakCamerasServer {
     // Root endpoint
     this.app.get("/", (_req: Request, res: Response) => {
       res.json({
-        message: "Welcome to Bak Cameras API",
+        message: "Welcome to Bak Cameras Black & White Processing API",
         version: "1.0.0",
         documentation: {
           imageUpload: "POST /api/images",
@@ -213,7 +213,7 @@ class BakCamerasServer {
 
       // Start server
       this.server.listen(this.PORT, () => {
-        console.log("🚀 Bak Cameras Server Started");
+        console.log("🚀 Bak Cameras Black & White Processing Server Started");
         console.log("================================");
         console.log(`📡 Server running on port ${this.PORT}`);
         console.log(`🌐 HTTP API: http://localhost:${this.PORT}`);

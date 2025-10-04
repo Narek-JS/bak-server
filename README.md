@@ -5,8 +5,8 @@ A Node.js/Express backend server for the Bak Cameras real-time video processing 
 ## Features
 
 - **Image Upload API**: Handle multiple image uploads with processing
-- **WebSocket Streaming**: Real-time video processing with mock AI detection
-- **Image Processing**: Sharp-based image optimization and resizing
+- **WebSocket Streaming**: Real-time video processing with black & white conversion
+- **Video Processing**: FFmpeg-based real-time black & white conversion
 - **TypeScript**: Full type safety and modern development experience
 - **Error Handling**: Comprehensive error handling and logging
 - **CORS Support**: Cross-origin resource sharing for frontend integration
@@ -18,7 +18,7 @@ A Node.js/Express backend server for the Bak Cameras real-time video processing 
 - **Language**: TypeScript
 - **File Uploads**: Multer
 - **WebSockets**: ws library
-- **Image Processing**: Sharp
+- **Video Processing**: FFmpeg
 - **Development**: nodemon, ts-node
 
 ## Prerequisites
@@ -154,21 +154,8 @@ Upload multiple images for AI model training.
 
 **Server → Client:**
 
-- Processed video chunks
-- Detection results as JSON:
-  ```json
-  {
-    "type": "detection",
-    "data": [
-      {
-        "id": 1,
-        "label": "person",
-        "box": [100, 150, 200, 300],
-        "confidence": 0.85
-      }
-    ]
-  }
-  ```
+- Processed black & white video chunks (binary data)
+- Real-time grayscale video stream
 
 ## Configuration
 

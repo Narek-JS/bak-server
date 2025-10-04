@@ -170,9 +170,9 @@ router.post(
 router.get("/images", (_req: Request, res: Response) => {
   res.json({
     success: true,
-    message: "Video Echo Server is running",
+    message: "Black & White Video Processing Server is running",
     timestamp: new Date().toISOString(),
-    service: "video-echo-server",
+    service: "bw-video-processing-server",
   });
 });
 

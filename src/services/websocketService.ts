@@ -50,7 +50,7 @@ class WebSocketService {
       // Send welcome message
       this.sendToClient(clientId, {
         type: "connection",
-        message: "Connected to Video Processing Server",
+        message: "Connected to Black & White Video Processing Server",
         clientId: clientId,
       });
 
@@ -152,7 +152,7 @@ class WebSocketService {
           "-i",
           "pipe:0", // Read input from stdin
           "-vf",
-          "format=gray", // Apply the grayscale video filter
+          "format=gray,eq=contrast=1.2:brightness=0.1", // Apply grayscale + enhance contrast for better black/white
           "-f",
           "webm", // Set the output container format to WebM
           "pipe:1", // Write the output to stdout
@@ -222,7 +222,7 @@ class WebSocketService {
       );
       this.sendToClient(clientId, {
         type: "error",
-        message: "Failed to initialize video processing",
+        message: "Failed to initialize black & white video processing",
       });
     }
   }

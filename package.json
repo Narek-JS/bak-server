@@ -1,7 +1,7 @@
 {
-  "name": "bak-cameras-server",
+  "name": "bak-cameras-server-bw",
   "version": "1.0.0",
-  "description": "Backend server for Bak Cameras real-time video processing application",
+  "description": "Backend server for Bak Cameras real-time black & white video processing application",
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon src/index.ts",
@@ -14,7 +14,9 @@
     "express",
     "typescript",
     "websocket",
-    "image-processing",
+    "video-processing",
+    "black-white",
+    "grayscale",
     "real-time"
   ],
   "author": "Bak Cameras Team",
