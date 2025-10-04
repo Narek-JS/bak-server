@@ -1,19 +1,14 @@
-import WebSocket from 'ws';
-import { Server as HttpServer } from 'http';
-import { v4 as uuidv4 } from 'uuid';
+import WebSocket from "ws";
+import { Server as HttpServer } from "http";
+import { v4 as uuidv4 } from "uuid";
+import { spawn, ChildProcess } from "child_process";
 
 interface ClientConnection {
   id: string;
   ws: WebSocket;
   isAlive: boolean;
   lastPing: number;
-}
-
-interface DetectionResult {
-  id: number;
-  label: string;
-  box: [number, number, number, number]; // [x, y, width, height]
-  confidence?: number;
+  ffmpegProcess?: ChildProcess;
 }
 
 class WebSocketService {
@@ -24,10 +19,10 @@ class WebSocketService {
   private readonly PONG_TIMEOUT = 10000; // 10 seconds
 
   constructor(server: HttpServer) {
-    this.wss = new WebSocket.Server({ 
+    this.wss = new WebSocket.Server({
       server,
-      path: '/ws',
-      perMessageDeflate: false // Disable compression for better performance with video
+      path: "/ws",
+      perMessageDeflate: false, // Disable compression for better performance with video
     });
 
     this.setupWebSocketServer();
@@ -35,40 +30,61 @@ class WebSocketService {
   }
 
   private setupWebSocketServer(): void {
-    this.wss.on('connection', (ws: WebSocket, req) => {
+    this.wss.on("connection", (ws: WebSocket, req) => {
       const clientId = uuidv4();
       const client: ClientConnection = {
         id: clientId,
         ws,
         isAlive: true,
-        lastPing: Date.now()
+        lastPing: Date.now(),
       };
 
       this.clients.set(clientId, client);
-      console.log(`Client ${clientId} connected from ${req.socket.remoteAddress}`);
+      console.log(
+        `Client ${clientId} connected from ${req.socket.remoteAddress}`
+      );
+
+      // Create FFmpeg process immediately for this client
+      this.createFFmpegProcess(clientId);
 
       // Send welcome message
       this.sendToClient(clientId, {
-        type: 'connection',
-        message: 'Connected to Bak Cameras WebSocket server',
-        clientId: clientId
+        type: "connection",
+        message: "Connected to Video Processing Server",
+        clientId: clientId,
       });
 
-      // Handle incoming messages
-      ws.on('message', async (data: WebSocket.Data) => {
+      // Handle incoming messages - direct pipeline to FFmpeg
+      ws.on("message", (data: WebSocket.Data) => {
         try {
-          await this.handleVideoChunk(clientId, data);
+          // Convert WebSocket data to Buffer
+          const videoBuffer = Buffer.isBuffer(data)
+            ? data
+            : Buffer.from(data as ArrayBuffer);
+
+          console.log(
+            `Received message from client ${clientId}, size: ${videoBuffer.length} bytes`
+          );
+
+          if (videoBuffer.length > 0) {
+            this.sendToFFmpeg(clientId, videoBuffer);
+          } else {
+            console.warn(`Received empty buffer from client ${clientId}`);
+          }
         } catch (error) {
-          console.error(`Error processing video chunk from client ${clientId}:`, error);
+          console.error(
+            `Error processing video chunk from client ${clientId}:`,
+            error
+          );
           this.sendToClient(clientId, {
-            type: 'error',
-            message: 'Error processing video chunk'
+            type: "error",
+            message: "Error processing video chunk",
           });
         }
       });
 
       // Handle pong responses
-      ws.on('pong', () => {
+      ws.on("pong", () => {
         const client = this.clients.get(clientId);
         if (client) {
           client.isAlive = true;
@@ -77,104 +93,161 @@ class WebSocketService {
       });
 
       // Handle client disconnect
-      ws.on('close', (code: number, reason: Buffer) => {
-        console.log(`Client ${clientId} disconnected. Code: ${code}, Reason: ${reason.toString()}`);
-        this.clients.delete(clientId);
+      ws.on("close", (code: number, reason: Buffer) => {
+        console.log(
+          `Client ${clientId} disconnected. Code: ${code}, Reason: ${reason.toString()}`
+        );
+        this.cleanupClient(clientId);
       });
 
       // Handle errors
-      ws.on('error', (error: Error) => {
+      ws.on("error", (error: Error) => {
         console.error(`WebSocket error for client ${clientId}:`, error);
-        this.clients.delete(clientId);
+        this.cleanupClient(clientId);
       });
     });
 
-    console.log('WebSocket server initialized on /ws');
+    console.log("WebSocket server initialized on /ws");
   }
 
-  private async handleVideoChunk(clientId: string, data: WebSocket.Data): Promise<void> {
+  private sendToFFmpeg(clientId: string, videoBuffer: Buffer): void {
     const client = this.clients.get(clientId);
-    if (!client) {
-      console.warn(`Client ${clientId} not found`);
+    if (!client || !client.ffmpegProcess || client.ffmpegProcess.killed) {
+      console.error(`FFmpeg process not available for client ${clientId}`);
       return;
     }
 
     try {
-      // Convert WebSocket data to Buffer
-      const videoBuffer = Buffer.isBuffer(data) ? data : Buffer.from(data as ArrayBuffer);
-      
-      console.log(`Received video chunk from client ${clientId}, size: ${videoBuffer.length} bytes`);
+      if (client.ffmpegProcess.stdin && !client.ffmpegProcess.stdin.destroyed) {
+        client.ffmpegProcess.stdin.write(videoBuffer);
+        console.log(
+          `✅ Sent ${videoBuffer.length} bytes to FFmpeg for client ${clientId}`
+        );
+      } else {
+        console.error(`❌ FFmpeg stdin not available for client ${clientId}`);
+      }
+    } catch (error) {
+      console.error(
+        `❌ Error writing to FFmpeg stdin for client ${clientId}:`,
+        error
+      );
+    }
+  }
 
-      // Process video chunk with sharp (placeholder AI processing)
-      const processedBuffer = await this.processVideoChunk(videoBuffer);
-      
-      // Generate mock detection results for demonstration
-      const detectionResults = this.generateMockDetections();
-      
-      // Send processed video chunk back to client
-      if (processedBuffer && processedBuffer.length > 0) {
-        client.ws.send(processedBuffer);
+  private createFFmpegProcess(clientId: string): void {
+    const client = this.clients.get(clientId);
+    if (!client) {
+      return;
+    }
+
+    try {
+      console.log(`Creating FFmpeg process for client ${clientId}`);
+
+      // Spawn FFmpeg process with optimized real-time settings
+      const ffmpegProcess = spawn(
+        "ffmpeg",
+        [
+          "-fflags",
+          "nobuffer", // Reduces latency by not buffering input
+          "-i",
+          "pipe:0", // Read input from stdin
+          "-vf",
+          "format=gray", // Apply the grayscale video filter
+          "-f",
+          "webm", // Set the output container format to WebM
+          "pipe:1", // Write the output to stdout
+        ],
+        {
+          stdio: ["pipe", "pipe", "pipe"],
+        }
+      );
+
+      // Handle FFmpeg stdout - send processed chunks directly back to client
+      ffmpegProcess.stdout?.on("data", (chunk: Buffer) => {
+        console.log(
+          `📥 FFmpeg stdout data for client ${clientId}, size: ${chunk.length} bytes`
+        );
+
+        if (client.ws.readyState === WebSocket.OPEN && chunk.length > 0) {
+          try {
+            client.ws.send(chunk);
+            console.log(
+              `✅ Sent processed grayscale chunk to client ${clientId}, size: ${chunk.length} bytes`
+            );
+          } catch (error) {
+            console.error(
+              `❌ Error sending chunk to client ${clientId}:`,
+              error
+            );
+          }
+        } else {
+          console.warn(
+            `❌ Cannot send chunk to client ${clientId}, WS state: ${client.ws.readyState}, chunk size: ${chunk.length}`
+          );
+        }
+      });
+
+      // Handle FFmpeg stderr - log all diagnostic output for debugging
+      ffmpegProcess.stderr?.on("data", (data: Buffer) => {
+        const output = data.toString();
+        console.log(`FFmpeg stderr for client ${clientId}:`, output);
+      });
+
+      // Handle FFmpeg process errors
+      ffmpegProcess.on("error", (error: Error) => {
+        console.error(`FFmpeg process error for client ${clientId}:`, error);
+        this.sendToClient(clientId, {
+          type: "error",
+          message: "FFmpeg process error occurred",
+        });
+      });
+
+      // Handle FFmpeg process exit
+      ffmpegProcess.on("exit", (code: number, signal: string) => {
+        console.log(
+          `FFmpeg process exited for client ${clientId} with code ${code}, signal: ${signal}`
+        );
+        // Don't recreate the process - let the client reconnect if needed
+        client.ffmpegProcess = undefined as any;
+      });
+
+      // Store the process reference
+      client.ffmpegProcess = ffmpegProcess;
+
+      console.log(`✅ Created FFmpeg process for client ${clientId}`);
+    } catch (error) {
+      console.error(
+        `Failed to create FFmpeg process for client ${clientId}:`,
+        error
+      );
+      this.sendToClient(clientId, {
+        type: "error",
+        message: "Failed to initialize video processing",
+      });
+    }
+  }
+
+  private cleanupClient(clientId: string): void {
+    const client = this.clients.get(clientId);
+    if (client) {
+      // Kill FFmpeg process if it exists
+      if (client.ffmpegProcess && !client.ffmpegProcess.killed) {
+        console.log(`Killing FFmpeg process for client ${clientId}`);
+        client.ffmpegProcess.kill("SIGTERM");
+
+        // Force kill after 5 seconds if it doesn't exit gracefully
+        setTimeout(() => {
+          if (client.ffmpegProcess && !client.ffmpegProcess.killed) {
+            console.log(`Force killing FFmpeg process for client ${clientId}`);
+            client.ffmpegProcess.kill("SIGKILL");
+          }
+        }, 5000);
       }
 
-      // Send detection results as JSON
-      this.sendToClient(clientId, {
-        type: 'detection',
-        data: detectionResults
-      });
-
-    } catch (error) {
-      console.error(`Error processing video chunk for client ${clientId}:`, error);
-      throw error;
+      // Remove client from map
+      this.clients.delete(clientId);
+      console.log(`Cleaned up client ${clientId}`);
     }
-  }
-
-  private async processVideoChunk(videoBuffer: Buffer): Promise<Buffer | null> {
-    try {
-      // For demonstration, we'll apply a simple grayscale filter
-      // In a real implementation, this would be replaced with actual AI processing
-      
-      // Note: This is a simplified example. Real video processing would require
-      // more sophisticated handling of video frames and codecs
-      
-      // For now, we'll just return the original buffer
-      // In production, you would:
-      // 1. Decode the video frame
-      // 2. Apply AI processing (object detection, etc.)
-      // 3. Encode the processed frame back to video format
-      
-      return videoBuffer;
-    } catch (error) {
-      console.error('Error processing video chunk:', error);
-      return null;
-    }
-  }
-
-  private generateMockDetections(): DetectionResult[] {
-    // Generate mock detection results for demonstration
-    // In a real implementation, this would come from your AI model
-    const mockDetections: DetectionResult[] = [];
-    
-    // Randomly generate 0-3 detections
-    const numDetections = Math.floor(Math.random() * 4);
-    
-    for (let i = 0; i < numDetections; i++) {
-      const labels = ['person', 'car', 'bicycle', 'dog', 'cat', 'bottle', 'laptop', 'phone'];
-      const randomLabel = labels[Math.floor(Math.random() * labels.length)] || 'object';
-      
-      mockDetections.push({
-        id: i + 1,
-        label: randomLabel,
-        box: [
-          Math.random() * 400, // x
-          Math.random() * 300, // y
-          Math.random() * 200 + 50, // width
-          Math.random() * 150 + 50  // height
-        ],
-        confidence: Math.random() * 0.5 + 0.5 // 0.5 to 1.0
-      });
-    }
-    
-    return mockDetections;
   }
 
   private sendToClient(clientId: string, data: any): void {
@@ -247,13 +320,17 @@ class WebSocketService {
     if (this.pingInterval) {
       clearInterval(this.pingInterval);
     }
-    
-    this.clients.forEach((client) => {
-      client.ws.close();
+
+    // Clean up all clients and their FFmpeg processes
+    this.clients.forEach((client, clientId) => {
+      this.cleanupClient(clientId);
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.close();
+      }
     });
-    
+
     this.wss.close();
-    console.log('WebSocket service closed');
+    console.log("WebSocket service closed");
   }
 }
 

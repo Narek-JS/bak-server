@@ -21,21 +21,62 @@ A Node.js/Express backend server for the Bak Cameras real-time video processing 
 - **Image Processing**: Sharp
 - **Development**: nodemon, ts-node
 
+## Prerequisites
+
+⚠️ **Important**: This application requires FFmpeg to be installed on your system for real-time video processing.
+
+### Required Dependencies
+
+- **Node.js 18.0.0 or higher**
+- **npm or yarn package manager**
+- **FFmpeg** - Must be installed and available in your system's PATH
+
+### Installing FFmpeg
+
+FFmpeg is required for the real-time video processing functionality. Download and install it from the official website:
+
+**Download FFmpeg**: https://ffmpeg.org/download.html
+
+#### Windows
+
+1. Download the latest FFmpeg build
+2. Extract to a folder (e.g., `C:\ffmpeg`)
+3. Add the `bin` folder to your system PATH
+4. Verify installation: `ffmpeg -version`
+
+#### macOS
+
+```bash
+# Using Homebrew
+brew install ffmpeg
+
+# Verify installation
+ffmpeg -version
+```
+
+#### Linux (Ubuntu/Debian)
+
+```bash
+# Install FFmpeg
+sudo apt update
+sudo apt install ffmpeg
+
+# Verify installation
+ffmpeg -version
+```
+
 ## Quick Start
-
-### Prerequisites
-
-- Node.js 18.0.0 or higher
-- npm or yarn package manager
 
 ### Installation
 
 1. **Install Dependencies**
+
    ```bash
    npm install
    ```
 
 2. **Development Mode**
+
    ```bash
    npm run dev
    ```
@@ -50,19 +91,19 @@ A Node.js/Express backend server for the Bak Cameras real-time video processing 
 
 ### HTTP Endpoints
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/` | API welcome message and documentation |
-| `GET` | `/health` | Health check with server status |
-| `GET` | `/api/status` | Detailed API status and connected clients |
-| `POST` | `/api/images` | Upload multiple images |
-| `GET` | `/api/images` | List uploaded images |
-| `DELETE` | `/api/images/:filename` | Delete specific image |
+| Method   | Endpoint                | Description                               |
+| -------- | ----------------------- | ----------------------------------------- |
+| `GET`    | `/`                     | API welcome message and documentation     |
+| `GET`    | `/health`               | Health check with server status           |
+| `GET`    | `/api/status`           | Detailed API status and connected clients |
+| `POST`   | `/api/images`           | Upload multiple images                    |
+| `GET`    | `/api/images`           | List uploaded images                      |
+| `DELETE` | `/api/images/:filename` | Delete specific image                     |
 
 ### WebSocket Endpoint
 
-| Endpoint | Description |
-|----------|-------------|
+| Endpoint | Description                                 |
+| -------- | ------------------------------------------- |
 | `WS /ws` | Real-time video streaming and AI processing |
 
 ## API Documentation
@@ -74,6 +115,7 @@ A Node.js/Express backend server for the Bak Cameras real-time video processing 
 Upload multiple images for AI model training.
 
 **Request:**
+
 - Content-Type: `multipart/form-data`
 - Field name: `images`
 - Max files: 10
@@ -81,6 +123,7 @@ Upload multiple images for AI model training.
 - Supported formats: JPEG, PNG, GIF, WebP, BMP, TIFF
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -106,9 +149,11 @@ Upload multiple images for AI model training.
 **Connection:** `ws://localhost:5000/ws`
 
 **Client → Server:**
+
 - Send video chunks (Blob/Buffer data) from MediaRecorder
 
 **Server → Client:**
+
 - Processed video chunks
 - Detection results as JSON:
   ```json
@@ -129,9 +174,9 @@ Upload multiple images for AI model training.
 
 ### Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `5000` | Server port |
+| Variable   | Default       | Description      |
+| ---------- | ------------- | ---------------- |
+| `PORT`     | `5000`        | Server port      |
 | `NODE_ENV` | `development` | Environment mode |
 
 ### File Structure
@@ -164,6 +209,7 @@ server/
 ### Code Quality
 
 The project uses strict TypeScript configuration with:
+
 - Strict type checking
 - No implicit any
 - Unused variable detection
@@ -206,24 +252,37 @@ The server is designed to work seamlessly with the Bak Cameras React frontend:
 ### Common Issues
 
 1. **Port Already in Use**
+
    ```bash
    # Change port in .env or environment variable
    PORT=5001 npm run dev
    ```
 
 2. **File Upload Fails**
+
    - Check file size (max 10MB)
    - Verify file type (images only)
    - Ensure uploads directory exists
 
 3. **WebSocket Connection Fails**
+
    - Verify server is running on correct port
    - Check CORS configuration
    - Ensure WebSocket path is `/ws`
 
+4. **FFmpeg Not Found Error**
+   ```
+   Error: spawn ffmpeg ENOENT
+   ```
+   - Ensure FFmpeg is installed and in your system PATH
+   - Run `ffmpeg -version` to verify installation
+   - On Windows, check that FFmpeg bin directory is in PATH
+   - Restart your terminal/command prompt after installing FFmpeg
+
 ### Logs
 
 The server provides detailed logging:
+
 - Request/response logging
 - WebSocket connection events
 - Error details with stack traces

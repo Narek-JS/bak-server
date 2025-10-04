@@ -9,9 +9,14 @@ LABEL fly_launch_runtime="Node.js"
 # Node.js app lives here
 WORKDIR /app
 
+# Install FFmpeg for video processing
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y ffmpeg && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Set production environment
 ENV NODE_ENV="production"
-
 
 # Throw-away build stage to reduce size of final image
 FROM base AS build
