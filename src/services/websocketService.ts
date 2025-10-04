@@ -15,8 +15,8 @@ class WebSocketService {
   private wss: WebSocket.Server;
   private clients: Map<string, ClientConnection> = new Map();
   private pingInterval: NodeJS.Timeout | null = null;
-  private readonly PING_INTERVAL = 30000; // 30 seconds
-  private readonly PONG_TIMEOUT = 10000; // 10 seconds
+  private readonly PING_INTERVAL = 60000; // 60 seconds - less frequent pings
+  private readonly PONG_TIMEOUT = 30000; // 30 seconds - more time to respond
 
   constructor(server: HttpServer) {
     this.wss = new WebSocket.Server({
@@ -57,6 +57,25 @@ class WebSocketService {
       // Handle incoming messages - direct pipeline to FFmpeg
       ws.on("message", (data: WebSocket.Data) => {
         try {
+          // Check if it's a heartbeat message
+          if (typeof data === "string") {
+            try {
+              const message = JSON.parse(data);
+              if (message.type === "heartbeat") {
+                console.log(`💓 Received heartbeat from client ${clientId}`);
+                // Update lastPing time to keep connection alive
+                const client = this.clients.get(clientId);
+                if (client) {
+                  client.lastPing = Date.now();
+                  client.isAlive = true;
+                }
+                return;
+              }
+            } catch (parseError) {
+              // Not JSON, continue with normal processing
+            }
+          }
+
           // Convert WebSocket data to Buffer
           const videoBuffer = Buffer.isBuffer(data)
             ? data
@@ -264,23 +283,44 @@ class WebSocketService {
   private startPingInterval(): void {
     this.pingInterval = setInterval(() => {
       this.clients.forEach((client, clientId) => {
-        if (!client.isAlive) {
-          console.log(`Terminating inactive client ${clientId}`);
-          client.ws.terminate();
+        // Only ping if the connection is still open
+        if (client.ws.readyState !== WebSocket.OPEN) {
+          console.log(`Client ${clientId} connection is not open, cleaning up`);
           this.clients.delete(clientId);
           return;
         }
 
         // Check if client hasn't responded to ping for too long
         if (Date.now() - client.lastPing > this.PONG_TIMEOUT) {
-          console.log(`Client ${clientId} timed out`);
+          console.log(
+            `Client ${clientId} timed out (${
+              Date.now() - client.lastPing
+            }ms since last ping)`
+          );
           client.ws.terminate();
           this.clients.delete(clientId);
           return;
         }
 
-        client.isAlive = false;
-        client.ws.ping();
+        // Only ping if we haven't received a response to the last ping
+        if (!client.isAlive) {
+          console.log(
+            `Client ${clientId} didn't respond to last ping, terminating`
+          );
+          client.ws.terminate();
+          this.clients.delete(clientId);
+          return;
+        }
+
+        // Send ping and mark as waiting for response
+        try {
+          client.isAlive = false;
+          client.ws.ping();
+          console.log(`🏓 Sent ping to client ${clientId}`);
+        } catch (error) {
+          console.error(`Error sending ping to client ${clientId}:`, error);
+          this.clients.delete(clientId);
+        }
       });
     }, this.PING_INTERVAL);
   }

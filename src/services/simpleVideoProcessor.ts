@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import { Server as HttpServer } from "http";
 import { v4 as uuidv4 } from "uuid";
-import { spawn, ChildProcess } from "child_process";
+import { ChildProcess } from "child_process";
 
 interface ClientConnection {
   id: string;
